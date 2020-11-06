@@ -1,0 +1,53 @@
+# This workflow needs to be in the develop branch for it to work. All changes on branches will not take effect until merged
+
+# This workflow runs when any check completes. It will merge the branch used for the check on the following conditions
+# - The Check is successful and the check name is "All Projects"
+# - The PR is in a mergable state (this depends on the branch protection settings of the repo)
+# - The branch is not conflicted with develop
+
+name: Auto Merge
+
+# Controls when the action will run. Triggers the workflow on completed check run
+on: 
+  check_run:
+    types: [completed]
+
+jobs:
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # This state is the same as the on the PR. If the PR has a green merge button the output will be a "clean" mergeable status
+    steps:
+      - name: all projects successful
+        if: github.event.check_run.conclusion == 'success' && github.event.check_run.name == 'All Projects' && github.event.check_run.pull_requests[0].base.ref == 'develop'
+        id: check
+        run: |
+          echo "::set-output merge=::true"
+        
+      - name: Sleep if this check is all projects
+        if: steps.check.outputs.merge == 'true'
+        run: sleep 10s
+      
+      - name: Check PR can be merged
+        if: steps.check.outputs.merge == 'true'
+        uses: arup-group/is-pr-mergable
+        with:
+          pull_number: ${{ github.event.check_run.pull_requests[0].number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Trigger PR merge
+        if: steps.check.outputs.merge == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SLEEP_PERIOD=5s
+          TRY=0
+          works=false
+          until [ $TRY -eq 3 ] || [ $works == true ]; do
+            sleep $SLEEP_PERIOD
+            works=$(gh pr merge --repo ${{ github.repository }} -m ${{ github.event.check_run.pull_requests[0].number }} && echo true || echo false)
+            TRY=$((TRY+1))
+          done
+          [ $TRY -lt 3 ]
