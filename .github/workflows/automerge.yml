@@ -30,6 +30,7 @@ jobs:
         run: sleep 10s
       
       - name: Check PR can be merged
+        id: approveMerge
         if: steps.check.outputs.merge == 'true'
         uses: arup-group/is-pr-mergable
         with:
@@ -38,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
       - name: Trigger PR merge
-        if: steps.check.outputs.merge == 'true'
+        if: steps.approveMerge.outputs.mergable_status == 'CLEAN'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
